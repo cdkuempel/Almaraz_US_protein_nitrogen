@@ -1,0 +1,290 @@
+---
+title: "Untitled"
+author: "Caitie"
+date: "30/06/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(sf)
+library(here)
+library(tmap)
+```
+
+This script creates Figure 1, Figure S1 and S2 maps from Alamaraz et al. The impact of excessive protein consumption on human wastewater nitrogen loading of US waters
+
+# Watershed boundary data
+
+```{r}
+shed<-"WBDHU8"
+watersheds_proj<-st_read(paste0("/home/shares/food-systems/Maya/WBD_", shed, ".shp"))
+state_files<-list.files(path = "/home/shares/food-systems/Maya/State_tract_files/", pattern = "_Tract_Population.shp", full.names = T)
+
+```
+
+
+```{r}
+group1<-"Under 5 years"
+group2<-c("5 to 9 years", "10 to 14 years")
+group3<-c("15 to 17 years")
+group4<-c("18 and 19 years", "20 years", "21 years", "22 to  24 years")
+group5<-c("25 to 29 years", "30 to  34 years", "35 to  39 years", "40 to 44 years")
+group6<-c("45 to 49 years", "50  to  54 years", "55 to  59 years", "60 and 61 years", "62 to 64 years")
+
+
+merged_dat <- 
+  do.call(rbind,
+          lapply(list.files(path = here("output_data/State_tract_files"),pattern = paste0("_Pop_group_watershed_", shed, ".csv"),full.names = T), read.csv)) %>% 
+  mutate(n_pop_group = ifelse(Pop_group %in% group1, "Under 5",
+                              ifelse(Pop_group %in% group2, "5-13",
+                                     ifelse(Pop_group %in% group3, "14-17",
+                                            ifelse(Pop_group %in% group4, "18-24",
+                                                   ifelse(Pop_group %in% group5, "25-44",
+                                                          ifelse(Pop_group %in%  group6, "45-64", "65+")))))))  %>% 
+    group_by(huc8, n_pop_group) %>% 
+  summarise(Population = sum(Pop_ws_age))
+
+area<-watersheds_proj %>% 
+  as.data.frame() %>% 
+  dplyr::select(HUC8, area) %>% 
+  mutate(area_m2 = as.numeric(area),
+         area_km2 = area_m2/1000000,
+         HUC8_2 = as.character(HUC8))
+
+test<-merged_dat[which(merged_dat$n_pop_group == "5-13"),]
+
+a<-test %>% mutate(n_pop_group = ifelse(n_pop_group == "5-13", "5-13-a", ""),
+                   Population = Population/2)
+b<-test %>% mutate(n_pop_group = ifelse(n_pop_group == "5-13", "5-13-b", ""),
+                   Population = Population/2)
+
+merged_dat<-merged_dat %>% 
+  filter(!n_pop_group == "5-13")
+
+f_dat<-rbind(merged_dat, a, b) 
+
+```
+
+# Nitrogen rates
+
+These values are Tg/person/year
+
+```{r}
+n_dat<-fread(here("raw_data/N_loss_dat_pop_group.csv"))
+```
+
+# Join pop dat and  nitrogen dat
+```{r}
+n_p_dat<-left_join(f_dat, n_dat, by = c("n_pop_group" = "Pop_group")) %>% 
+  mutate(n_pop_loss_actual = Population * N_loss_actual,
+         n_pop_loss_rec = Population * N_loss_recommended) %>% 
+  group_by(huc8) %>% 
+  summarise(Total_n_actual = sum(n_pop_loss_actual),
+            Total_n_rec = sum(n_pop_loss_rec)) %>% 
+  mutate(diff = Total_n_actual - Total_n_rec,
+         diff_kg = diff * 1000000000,
+         diff_g = diff * 1000000000000,
+         HUC8 = ifelse(huc8<10000000, str_pad(huc8, 8, pad = "0"), HUC8)) %>% 
+  select(HUC8, diff, diff_g, diff_kg)
+
+
+n_p_dat2<-left_join(n_p_dat, area, by = c("HUC8" = "HUC8_2")) %>% 
+  mutate(diff_kg_km2 = diff_kg/area_km2,
+         diff_g_km2 = diff_g/area_km2,
+         g_quartiles = cut(diff_g_km2, breaks=quantile(diff_g_km2, probs=seq(0,1, by=0.05), na.rm=TRUE), 
+                                include.lowest=TRUE, labels=c("Q1","Q2","Q3","Q4", "Q5", "Q6","Q7","Q8","Q9","Q10","Q11","Q12","Q13", "Q14", "Q15","Q16","Q17","Q18","Q19", "Q20")),
+         kg_quartiles = cut(diff_kg_km2, breaks=quantile(diff_kg_km2, probs=seq(0,1, by=0.05), na.rm=TRUE), 
+                                include.lowest=TRUE, labels=c("Q1","Q2","Q3","Q4", "Q5", "Q6","Q7","Q8","Q9","Q10","Q11","Q12","Q13", "Q14", "Q15","Q16","Q17","Q18","Q19", "Q20")))
+
+g_qs<-cut(n_p_dat2$diff_g_km2, breaks=quantile(n_p_dat2$diff_g_km2, probs=seq(0,1, by=0.05), na.rm=TRUE), 
+    include.lowest=TRUE)
+
+kg_qs<-cut(n_p_dat2$diff_kg_km2, breaks=quantile(n_p_dat2$diff_kg_km2, probs=seq(0,1, by=0.05), na.rm=TRUE), 
+    include.lowest=TRUE)
+
+
+#Numbers for quintile maps
+unique(g_qs)
+unique(kg_qs)
+
+```
+
+# Clip watersheds to US boundary
+
+Load US state boundaries
+
+```{r}
+states<-st_read(dsn ="/home/shares/food-systems/Maya", layer = "tl_2017_us_state")
+states_proj<-st_transform(states, "+proj=aea +lat_1=29.5 +lat_2=45.5 +lat_0=37.5 +lon_0=-96 +x_0=0 +y_0=0 +ellps=GRS80 +datum=NAD83 +units=m no_defs")
+
+watersheds_proj<-st_read(paste0("/home/shares/food-systems/Maya/WBD_", shed, ".shp"))
+
+```
+
+
+```{r}
+watersheds_US<-st_intersection(watersheds_proj, states_proj)
+```
+
+# Group back with spatial watershed data
+
+```{r}
+map_n<-left_join(watersheds_US, n_p_dat2, by = "HUC8")
+map_n_longlat<-st_transform(map_n, 4326)
+```
+
+
+```{r}
+data("World")
+united_states <- ne_countries(scale = "medium", returnclass = "sf", country = "united states of america")
+
+crop_xy<-c(-135, -65, 24, 50)
+us_crop<-tmaptools::crop_shape(united_states, crop_xy, polygon = TRUE)
+
+```
+
+# Figure 1
+
+Map illustrating the difference in nitrogen excretion (i.e., when recommended protein consumption is subtracted from current protein consumption rates; kg N km-2) for watersheds in the United States in 2016. Excretion rates are calculated as a function of population density and age demographics. Spatial population data was sourced from the American Community Survey 5-year (2012-2016)(United States Census Bureau 2011) sex by age tract data for 2016 using the tidycensus package in R v3.5.3 and aggregated to watersheds (HUC4). Watershed maps available from the USGS Watershed Boundary Dataset (USGS 2019). 
+
+```{r}
+kg_qs<-cut(n_p_dat2$diff_kg_km2, breaks=quantile(n_p_dat2$diff_kg_km2, probs=seq(0,1, by=0.05), na.rm=TRUE), 
+    include.lowest=TRUE)
+
+mybreaks<-c(0, 0.102, 0.395, 0.739, 1.27, 1.93, 2.84, 4.27, 6.41, 9.4, 13.1, 17.3, 22.7, 29.4, 36.6, 47.5, 62.3, 93.5, 144, 304, 8075)
+
+diff_map<-tm_shape(us_crop, projection = 2163) +
+    tm_borders(lwd = 0.5) +
+tm_shape(map_n_longlat) +
+  tm_fill("diff_kg_km2",
+              breaks = mybreaks,
+              title="") +
+  tm_borders(lwd = 0.2,
+             alpha = 0.7) + 
+  tm_legend(legend.position = c("left", "bottom")) +
+  tm_layout(legend.outside = T,
+            frame = FALSE,
+            legend.text.size = 1.2)
+```
+
+Plot map - it takes a while so avoid if possible
+```{r}
+#diff_map
+```
+
+```{r}
+tmap_save(diff_map, here("figures/Figure1_Diff_nitrogen_g_km2_quartile_map_2016.png"), height = 4.5, width = 4.5, units = "in", dpi = 300)
+```
+
+
+# Figure S1
+
+Map of US nitrogen excretion from protein consumption using a uniform value of 5 kg N/person/year.
+
+```{r}
+total_pop<-merged_dat %>% 
+  ungroup() %>% 
+  mutate(HUC8 = as.integer(huc8),
+         HUC8 = ifelse(HUC8<10000000, str_pad(HUC8, 8, pad = "0"), HUC8),
+         HUC = as.character(as.numeric(HUC8))) %>% 
+  group_by(HUC8) %>% 
+  summarise(total_pop = sum(Population, na.rm = T)) %>% 
+  ungroup() %>% 
+  mutate(rec_uniN = total_pop * mean(n_dat$N_loss_recommended),
+         act_uniN = total_pop * mean(n_dat$N_loss_actual)  ,
+         diff_uniN = act_uniN - rec_uniN,
+         diff_kg = diff_uniN * 1000000000)
+
+total_join<-full_join(total_pop, area, by = c("HUC8" = "HUC8_2")) %>% 
+   mutate(diff_kg_km2 = diff_kg/area_km2) %>% 
+  left_join(watersheds_US, ., by = "HUC8") %>% 
+  dplyr::select(HUC8, total_pop, rec_uniN, act_uniN, diff_uniN, diff_kg, diff_kg_km2) 
+
+
+sum(total_pop$diff_kg, na.rm = T)
+sum(map_n_longlat$diff_kg, na.rm = T)
+#(694224262 - 498078017)/694224262
+# The age split estimate is about 28% bigger or 1.4 times more
+```
+
+```{r}
+mybreaks2<-c(0, 0.102, 0.395, 0.739, 1.27, 1.93, 2.84, 4.27, 6.41, 9.4, 13.1, 17.3, 22.7, 29.4, 36.6, 47.5, 62.3, 93.5, 144, 304, 8075, 8400)
+
+uni_map<-tm_shape(us_crop, projection = 2163) +
+    tm_borders(lwd = 0.5) +
+tm_shape(total_join) +
+  tm_fill("diff_kg_km2",
+              breaks = mybreaks2,
+              title="") +
+   tm_borders(lwd = 0.2,
+             alpha = 0.7) + 
+  tm_legend(legend.position = c("left", "bottom")) +
+  tm_layout(legend.outside = T, 
+            frame = FALSE)
+```
+
+
+```{r}
+tmap_save(uni_map, here("figures/FigureS1_Uniform_N_difference.png"), dpi = 300, height = 1024, width = 1024)
+```
+
+# Figure S2
+
+Map of the difference in US nitrogen excretion from protein consumption using age specific values (Tables 1 and 2) and a uniform value (Figure S1).
+
+```{r}
+kg_qs<-cut(n_p_dat2$diff_kg_km2, breaks=quantile(n_p_dat2$diff_kg_km2, probs=seq(0,1, by=0.05), na.rm=TRUE), 
+    include.lowest=TRUE)
+  
+map_n_df<-map_n %>% 
+  as.data.frame() %>% 
+  dplyr::select(HUC8.y.y, diff_kg_km2, -geometry) %>% 
+  rename(diff_kg_km2_age = diff_kg_km2,
+         HUC8 = HUC8.y.y) 
+
+total_join_df<-total_join %>% 
+  as.data.frame() %>% 
+  dplyr::select(-geometry)
+
+uni_diff_dat<-full_join(map_n_df, total_join_df)
+
+test<-uni_diff_dat[!duplicated(uni_diff_dat),]
+
+uni_diff_dat2 <-test %>% 
+  mutate(diff_age = diff_kg_km2_age - diff_kg_km2)
+
+done<-full_join(watersheds_US, uni_diff_dat2, by = "HUC8")
+```
+
+```{r} 
+kg_qs2<-cut(done$diff_age, breaks=quantile(done$diff_age, probs=seq(0,1, by=0.05), na.rm=TRUE), 
+    include.lowest=TRUE)
+
+unique(kg_qs2)
+
+mybreaks3<-c(-294, -10.7, -5.07, -3.31, -2.29, -1.71, -1.3, -0.984, -0.764, -0.525, -0.367, -0.256,-0.171, -0.0989, -0.0533, -0.0266, -0.00174, 0.0148, 0.117, 0.567, 55.1)
+
+
+uni_age_map<-tm_shape(us_crop, projection = 2163) +
+    tm_borders(lwd = 0.5) +
+tm_shape(done) +
+  tm_fill("diff_age",
+              breaks = mybreaks3,
+              midpoint = NA,
+              title = "") +
+ tm_borders(lwd = 0.2,
+             alpha = 0.7) + 
+  tm_legend(legend.position = c("left", "bottom")) +
+  tm_layout(legend.outside = T,
+            frame = F)
+```
+
+
+```{r}
+tmap_save(uni_age_map, here("figures/FigureS2_Uni_age_comparision.png"), dpi = 300, height = 800, width = 1024)
+```
+

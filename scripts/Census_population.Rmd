@@ -1,0 +1,99 @@
+---
+title: "US_watershed_pop_census"
+author: "Caitie"
+date: "4/11/2019"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(rgdal)
+library(rgeos)
+library(sf)
+library(ggplot2)
+library(raster)
+library(rasterVis)
+library(maptools)
+library(tidycensus)
+library(tidyverse)
+library(parallel)
+library(data.table)
+library(here)
+library(nhdplusTools)
+
+library(rnaturalearth)
+library(rnaturalearthdata)
+```
+
+
+# Get state data
+```{r}
+# Explore getting census data
+
+#API key
+key<-"929241c24bedb6b8ce3a17f14ab2119aec0665b9"
+census_api_key(key, overwrite = FALSE, install = FALSE)
+
+v15 <- load_variables(2016, "acs5", cache = TRUE)
+
+# Get population estimates
+#pop_dat<-get_estimates(geography = "tract",product = "characteristics", breakdown = "AGEGROUP", Sys.getenv("CENSUS_API_KEY"))
+
+male_vars<-v15 %>% 
+  filter(concept == "SEX BY AGE") %>% 
+  filter(grepl("Male", label),
+         name != "B01001_001",
+         name !="B01001_002") %>% 
+  mutate(Pop_group = sub("Estimate!!Total!!Male!!", "", label))
+         
+
+female_vars<-v15 %>% filter(concept == "SEX BY AGE") %>%
+  filter(grepl("Female", label), name !="B01001_026")%>% 
+  mutate(Pop_group = sub("Estimate!!Total!!Female!!", "", label))
+
+all_vars<-rbind(male_vars, female_vars)
+
+
+
+states<-c("AL","AK","AZ","AR","CA","CO","CT","DE","FL","GA","HI","ID","IL","IN","IA","KS","KY","LA","ME","MD","MA","MI","MN","MS","MO","MT","NE","NV","NH","NJ","NM","NY","NC","ND","OH","OK","OR","PA","RI","SC","SD","TN","TX","UT","VT","VA","WA","WV","WI","WY")
+
+```
+
+
+```{r}
+
+states2<-states[1:10]
+
+#"KY" doesn't work
+
+#state_ws_pop<-function(x){
+
+for(i in 1:length(states2)){
+  
+  all_dat<-c()
+  x<-states2[i]
+  print(x)
+  
+  for(y in 1:nrow(all_vars)){
+  avar<-all_vars[y,"name"]
+  a_name<-all_vars[y,"label"]
+  sub_name<-as.character(all_vars[y,"Pop_group"])
+  dat<-get_acs(geography = "tract", variables = c(group = avar), year = 2016, state = x, geometry = TRUE) %>% 
+    mutate(Pop_group = sub_name)
+  
+   all_dat<-rbind(all_dat, dat)
+   
+   c_dat<-all_dat %>% 
+     group_by(NAME, Pop_group) %>% 
+     summarise(Population = sum(estimate))
+}
+ st_write(c_dat, here(paste0("raw_data/State_tract_files/",x,"_Tract_Population.shp")))
+
+}
+
+#mclapply(states2, state_ws_pop, mc.cores = 5)
+
+```
