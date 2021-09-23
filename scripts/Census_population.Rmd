@@ -28,11 +28,8 @@ library(rnaturalearth)
 library(rnaturalearthdata)
 ```
 
-
 # Get state data
 ```{r}
-# Explore getting census data
-
 #API key
 key<-"929241c24bedb6b8ce3a17f14ab2119aec0665b9"
 census_api_key(key, overwrite = FALSE, install = FALSE)
@@ -65,9 +62,7 @@ states<-c("AL","AK","AZ","AR","CA","CO","CT","DE","FL","GA","HI","ID","IL","IN",
 
 ```{r}
 
-states2<-states[1:10]
-
-#"KY" doesn't work
+states2<-states[1:10] # I ran this in chunks as it takes a long time. Could add in parallel processing or do all at once depending on computer. Will need to change this to make sure all states are downloaded if using for loop.
 
 #state_ws_pop<-function(x){
 
@@ -90,7 +85,7 @@ for(i in 1:length(states2)){
      group_by(NAME, Pop_group) %>% 
      summarise(Population = sum(estimate))
 }
- st_write(c_dat, here(paste0("raw_data/State_tract_files/",x,"_Tract_Population.shp")))
+ st_write(c_dat, here(paste0("raw_data/State_tract_files/",x,"_Tract_Population.shp")), overwrite = T)
 
 }
 
