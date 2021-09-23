@@ -13,6 +13,8 @@ knitr::opts_chunk$set(echo = TRUE)
 library(sf)
 library(tidyverse)
 library(parallel)
+library(here)
+library(data.table)
 ```
 
 
@@ -26,8 +28,11 @@ state_files<-list.files(path = here("raw_data/State_tract_files"), pattern = "_T
 
 ```
 
+This can be slow and finicky. All files are provided in the github so decide whether you would like to run this yourself or use the existing files.
 
 ```{r}
+
+sub_state_files<-state_files[[33]]
 
 ws_state_combo<-function(i){
   print(i)
@@ -35,22 +40,22 @@ ws_state_combo<-function(i){
   d<-st_read(i)
   d_proj<-st_transform(d, crs = "+proj=aea +lat_1=29.5 +lat_2=45.5 +lat_0=37.5 +lon_0=-96 +x_0=0 +y_0=0 +ellps=GRS80 +datum=NAD83 +units=m no_defs")
   d_proj$area<-st_area(d_proj)
-  e<-extent(d_proj)
+  e<-raster::extent(d_proj)
   crop_watersheds<-st_crop(watersheds_proj, e)
   water_state<-st_intersection(d_proj, crop_watersheds)
   water_state$ws_area<-st_area(water_state)
   water_state$prop_area<-water_state$ws_area/water_state$area
   water_state$final_pop_age<-water_state$Population*water_state$prop_area
 
-test<- water_state %>% 
+done<- water_state %>% 
   as.data.frame() %>% 
   group_by(huc8, Pop_group) %>% 
   summarise(Pop_ws_age_true = sum(final_pop_age)) %>% 
   mutate(Pop_ws_age = as.numeric(Pop_ws_age_true))
 
- fwrite(test, here(paste0("output_data/State_tract_files/", name, "_Pop_group_watershed_",shed,".csv")))
+ fwrite(done, here(paste0("output_data/State_tract_files/", name, "_Pop_group_watershed_",shed,".csv")))
 
 }
 
-mclapply(state_files, ws_state_combo, mc.cores = 2)
+mclapply(sub_state_files, ws_state_combo, mc.cores = 3)
 ```
