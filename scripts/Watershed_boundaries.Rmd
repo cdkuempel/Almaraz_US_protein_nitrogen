@@ -30,7 +30,7 @@ library(nhdplusTools)
 U.S. watershed data is available at: https://www.usgs.gov/core-science-systems/ngp/national-hydrography/watershed-boundary-dataset?qt-science_support_page_related_con=4#qt-science_support_page_related_con
 
 ```{r}
-outdir<-here("raw_data")
+outdir<-here("raw_data/US_Watersheds")
 
 download_wbd(
   outdir,
@@ -39,7 +39,7 @@ download_wbd(
   progress = TRUE
 )
 
-fgdb<-here("raw_data/WBD_National_GDB.gdb")
+fgdb<-here("raw_data/US_Watersheds/WBD_National_GDB.gdb")
 
 fc_list<-ogrListLayers(fgdb)
 
@@ -70,5 +70,5 @@ watersheds_proj<-st_make_valid(watersheds_proj)
 watersheds_proj$area<-st_area(watersheds_proj)
 st_crs(watersheds_proj)<-"+proj=aea +lat_1=29.5 +lat_2=45.5 +lat_0=37.5 +lon_0=-96 +x_0=0 +y_0=0 +ellps=GRS80 +datum=NAD83 +units=m no_defs"
 
-st_write(watersheds_proj, here(paste0("raw_data/WBD_", shed, ".shp")), append = F)
+st_write(watersheds_proj, here(paste0("raw_data/US_Watersheds/WBD_", shed, ".shp")), append = F)
 ```

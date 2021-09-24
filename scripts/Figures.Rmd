@@ -21,7 +21,7 @@ This script creates Figure 1, Figure S1 and S2 maps from Alamaraz et al. The imp
 
 ```{r}
 shed<-"WBDHU8"
-watersheds_proj<-st_read(here(paste0("raw_data/WBD_", shed, ".shp")))
+watersheds_proj<-st_read(here(paste0("raw_data/US_Watersheds/WBD_", shed, ".shp")))
 state_files<-list.files(path = here("raw_data/State_tract_files/"), pattern = "_Tract_Population.shp", full.names = T)
 
 ```
