@@ -7,19 +7,17 @@ This repository accompanies the publication by Almaraz et al. 2022 The impact of
 
 There are two main data folders
 
-- raw_data
-        This folder has two datasets within the repo and two datasets that are saved from scripts.
+**raw_data**
+
+This folder has two datasets within the repo and two datasets that are saved from scripts.
+- The nitrogen loss by age group data and the United States shapefile are contained within the repo.
+- The Census_population.Rmd script creates a shapefile for each state that is saved within the State_tract_files folder.
+- The Waterhshed_boundaries.Rmd script downloads the US watershed boundary data, which is saved in this folder.
         
-        The nitrogen loss by age group data and the United States shapefile are contained within the repo.
+*Note that both the state tract files and watershed boundary files are quite large and are thus ignored and not saved within the github repo (see gitignore)*     
         
-        The Census_population.Rmd script creates a shapefile for each state that is saved within the State_tract_files folder.
-        
-        The Waterhsed_boundaries.Rmd script downloads the US watershed boundary data, which is saved in this folder.
-        
-        Note that both the state tract files and watershed boundary files are quite large and are thus ignored and not saved within the github repo (see gitignore)     
-        
- - output_data
-        This folder contains cleaned and modified data from the raw_data folder, including population per watershed data and nitrogen estimates.
+**output_data**
+- This folder contains cleaned and modified data from the raw_data folder, including population per watershed data and nitrogen estimates.
 
 ## 2. scripts
 
