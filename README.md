@@ -36,5 +36,5 @@ There are three scripts that should be executed in sequential order as follows:
 
 ## 4. figures
 
-Figures created in the Figures.Rmd script are saved in the figures folder. Further processing was performed to modify the Figure 1 legend in powerpoint.
+Figures created in the Figures.Rmd script are saved in the figures folder. Further processing was performed to modify the Figure 1 legend in powerpoint. Figures 2 and 3 were not made within the repo and are available upon request to the lead author.
 
